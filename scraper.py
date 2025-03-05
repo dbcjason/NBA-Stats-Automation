@@ -5,6 +5,7 @@ import gspread
 import datetime
 import os
 import json
+import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from nba_api.stats.endpoints import PlayerDashboardByYearOverYear, PlayerCareerStats
 from oauth2client.service_account import ServiceAccountCredentials
@@ -14,7 +15,7 @@ from tqdm import tqdm
 google_creds = os.getenv("GOOGLE_CREDS")
 
 if google_creds is None:
-    raise ValueError("\ud83d\udea8 GOOGLE_CREDS environment variable not found!")
+    raise ValueError("🚨 GOOGLE_CREDS environment variable not found!")
 
 # ✅ Convert JSON string back into a dictionary
 creds_dict = json.loads(google_creds)
@@ -43,11 +44,11 @@ DRAFT_SCHEDULE = {
 # ✅ Determine today's draft class
 today = datetime.datetime.today().weekday()
 if today not in DRAFT_SCHEDULE:
-    print("\ud83d\uded1 Today is not a scheduled update day. Exiting script.")
+    print("🛑 Today is not a scheduled update day. Exiting script.")
     exit()
 
 draft_year_to_update = DRAFT_SCHEDULE[today]
-print(f"Updating Draft Class {draft_year_to_update}...")
+print(f"🚀 Updating Draft Class {draft_year_to_update}...")
 
 # ✅ Stats columns
 per_game_stat_cols = ["MIN", "GP", "FGM", "FGA", "FG_PCT", "FG3M", "FG3A", "FG3_PCT",
@@ -64,13 +65,24 @@ for sheet_name in SHEET_NAMES:
 # ✅ Ensure all sheets have "Draft Year" and "NBA_ID"
 for sheet_name, df in sheet_data.items():
     if "Draft Year" not in df.columns or "NBA_ID" not in df.columns:
-        raise ValueError(f"\ud83d\udea8 'Draft Year' and 'NBA_ID' columns missing in {sheet_name} sheet!")
+        raise ValueError(f"🚨 'Draft Year' and 'NBA_ID' columns missing in {sheet_name} sheet!")
 
 # ✅ Combine all sheets into one DataFrame
 full_data = pd.concat(sheet_data.values(), ignore_index=True)
 
-# ✅ Filter only players from today's draft class, regardless of which sheet they're in
+# ✅ Filter only players from today's draft class
 filtered_players = full_data[full_data["Draft Year"] == draft_year_to_update]
+
+# ✅ Handle batch processing (first half vs second half)
+batch_type = sys.argv[1] if len(sys.argv) > 1 else "first"
+midpoint = len(filtered_players) // 2
+
+if batch_type == "first":
+    filtered_players = filtered_players.iloc[:midpoint]  # First half
+elif batch_type == "second":
+    filtered_players = filtered_players.iloc[midpoint:]  # Second half
+
+print(f"Processing {len(filtered_players)} players for batch: {batch_type}")
 
 # ✅ Dictionary to store updated stats
 updated_stats = {}
@@ -88,13 +100,14 @@ def get_nba_year(nba_id):
         return None
 
 def fetch_player_stats(nba_id):
-    """Fetch NBA stats for a single player, ensuring retries and proper rate limits."""
-    retries = 5  # Increased retries for robustness
-    delay = 2  # Start with 2-second delay
+    """Fetch NBA stats for a single player with exponential backoff and retries."""
+    retries = 5  
+    delay = 2  
 
     while retries:
         try:
             time.sleep(random.uniform(1, 2))  # ✅ Stagger requests
+
             nba_year = get_nba_year(nba_id)
             if not nba_year or nba_year > 5:
                 print(f"⚠️ NBA ID {nba_id} has an invalid NBA Year. Skipping...")
@@ -124,11 +137,12 @@ def fetch_player_stats(nba_id):
             print(f"⚠️ Error fetching stats for NBA ID {nba_id} (Attempt {6-retries}/5): {e}")
             retries -= 1
             time.sleep(delay)
-            delay *= 2
+            delay *= 2  
     
     print(f"❌ Failed to fetch stats for NBA ID {nba_id} after multiple attempts.")
     return nba_id, None
 
+# ✅ Process players in parallel (Limit to 2 threads to avoid rate limiting)
 with ThreadPoolExecutor(max_workers=2) as executor:
     futures = {executor.submit(fetch_player_stats, row["NBA_ID"]): row["NBA_ID"] for _, row in filtered_players.iterrows()}
     for future in tqdm(as_completed(futures), total=len(futures), desc="Processing Players"):
