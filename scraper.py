@@ -47,7 +47,7 @@ if today not in DRAFT_SCHEDULE:
     exit()
 
 draft_year_to_update = DRAFT_SCHEDULE[today]
-print(f"\ud83d\ude80 Updating Draft Class {draft_year_to_update}...")
+print(f"Updating Draft Class {draft_year_to_update}...")
 
 # ✅ Stats columns
 per_game_stat_cols = ["MIN", "GP", "FGM", "FGA", "FG_PCT", "FG3M", "FG3A", "FG3_PCT",
