@@ -23,4 +23,4 @@ jobs:
       - name: Run Scraper
         env:
           GOOGLE_CREDS: ${{ secrets.GOOGLE_CREDS }}  # ✅ Securely load the secret
-        run: python scrape_nba_stats.py
+        run: python nba_update_script.py
