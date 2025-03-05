@@ -2,7 +2,7 @@ name: NBA Stats Scraper
 
 on:
   schedule:
-    - cron: '0 20 * * 1-5'  # Runs at 6 AM UTC, Monday-Friday
+    - cron: '15 20 * * 1-5'  # Runs at 6 AM UTC, Monday-Friday
 
 jobs:
   scrape_data:
