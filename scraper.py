@@ -88,11 +88,13 @@ def get_nba_year(nba_id):
         return None
 
 def fetch_player_stats(nba_id):
-    """Fetch NBA stats for a single player."""
-    retries = 1
+    """Fetch NBA stats for a single player, with rate-limited retries."""
+    retries = 3
+    delay = 1  # Start with 1-second delay
+
     while retries:
         try:
-            time.sleep(random.uniform(0.5, 1.5))  # ✅ Lower time between requests
+            time.sleep(random.uniform(1, 2))  # ✅ Add delay to avoid rate limits
 
             # ✅ Determine correct NBA Year (Y1, Y2, etc.)
             nba_year = get_nba_year(nba_id)
@@ -131,14 +133,15 @@ def fetch_player_stats(nba_id):
             return nba_id, stats_row  # ✅ Success, return data
 
         except Exception as e:
-            print(f"⚠️ Error fetching stats for NBA ID {nba_id} (Attempt {2-retries}/1): {e}")
+            print(f"⚠️ Error fetching stats for NBA ID {nba_id} (Attempt {4-retries}/3): {e}")
             retries -= 1
-            time.sleep(random.uniform(1, 3))
+            time.sleep(delay)  # ✅ Exponential backoff
+            delay *= 2  # Double the delay for each retry
     
     return nba_id, None  # If all retries fail
 
-# ✅ Process players in parallel
-with ThreadPoolExecutor(max_workers=5) as executor:  # ✅ Adjust the number of workers (5 is safe)
+# ✅ Process players in parallel (Limit to 3 threads to avoid rate limiting)
+with ThreadPoolExecutor(max_workers=3) as executor:  # ✅ Reduced concurrency
     futures = {executor.submit(fetch_player_stats, row["NBA_ID"]): row["NBA_ID"] for _, row in filtered_players.iterrows()}
 
     for future in tqdm(as_completed(futures), total=len(futures), desc="Processing Players"):
