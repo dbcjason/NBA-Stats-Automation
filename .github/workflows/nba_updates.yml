@@ -2,8 +2,8 @@ name: NBA Stats Scraper
 
 on:
   schedule:
-    - cron: '20 23 * * 1-5'  # ✅ Runs at 3 AM UTC (First Half)
-    - cron: '50 23 * * 1-5'  # ✅ Runs at 4 AM UTC (Second Half)
+    - cron: '0 0 * * 1-5'  # ✅ Runs at 5:20 PM CT (3:20 AM UTC) (First Half)
+    - cron: '30 0 * * 1-5'  # ✅ Runs at 5:50 PM CT (3:50 AM UTC) (Second Half)
   workflow_dispatch:  # ✅ Allows manual trigger
 
 jobs:
@@ -24,7 +24,7 @@ jobs:
       - name: Run Scraper (First Half)
         env:
           GOOGLE_CREDS: ${{ secrets.GOOGLE_CREDS }}
-        run: python scraper.py --batch first
+        run: python scraper.py first  # ✅ Corrected argument passing
 
   scrape_data_second_half:
     runs-on: ubuntu-latest
@@ -43,4 +43,4 @@ jobs:
       - name: Run Scraper (Second Half)
         env:
           GOOGLE_CREDS: ${{ secrets.GOOGLE_CREDS }}
-        run: python scraper.py --batch second
+        run: python scraper.py second  # ✅ Corrected argument passing
