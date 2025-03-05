@@ -5,6 +5,7 @@ import gspread
 import datetime
 import os
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from nba_api.stats.endpoints import PlayerDashboardByYearOverYear, PlayerCareerStats
 from oauth2client.service_account import ServiceAccountCredentials
 from tqdm import tqdm
@@ -82,25 +83,22 @@ def get_nba_year(nba_id):
             return None  # No NBA seasons played
         unique_seasons = career[career["GP"] > 0]["SEASON_ID"].unique()
         return len(unique_seasons)  # Returns Y1, Y2, etc.
-
     except Exception as e:
         print(f"⚠️ Error determining NBA Year for NBA ID {nba_id}: {e}")
         return None
 
-# ✅ Process each player
-for idx, row in tqdm(filtered_players.iterrows(), total=len(filtered_players), desc=f"Fetching NBA Stats for {draft_year_to_update}"):
-    nba_id = row["NBA_ID"]
-
+def fetch_player_stats(nba_id):
+    """Fetch NBA stats for a single player."""
     retries = 1
     while retries:
         try:
-            time.sleep(random.uniform(0, 1.5))  # ✅ Avoid rate limits
+            time.sleep(random.uniform(0.5, 1.5))  # ✅ Lower time between requests
 
             # ✅ Determine correct NBA Year (Y1, Y2, etc.)
             nba_year = get_nba_year(nba_id)
             if not nba_year or nba_year > 5:
                 print(f"⚠️ NBA ID {nba_id} has an invalid NBA Year. Skipping...")
-                break
+                return nba_id, None
 
             # ✅ Fetch current season per-game stats
             per_game_dashboard = PlayerDashboardByYearOverYear(
@@ -113,18 +111,13 @@ for idx, row in tqdm(filtered_players.iterrows(), total=len(filtered_players), d
             ).get_data_frames()[1]
 
             # ✅ Filter for current season
-            per_game_data = per_game_dashboard[
-                per_game_dashboard["GROUP_VALUE"] == CURRENT_SEASON
-            ]
-            per_100_data = per_100_dashboard[
-                per_100_dashboard["GROUP_VALUE"] == CURRENT_SEASON
-            ]
+            per_game_data = per_game_dashboard[per_game_dashboard["GROUP_VALUE"] == CURRENT_SEASON]
+            per_100_data = per_100_dashboard[per_100_dashboard["GROUP_VALUE"] == CURRENT_SEASON]
 
             # ✅ If no stats exist, skip the player
             if per_game_data.empty or per_100_data.empty:
                 print(f"⚠️ No valid stats found for NBA ID {nba_id}. Skipping...")
-                updated_stats[nba_id] = {col: None for col in per_game_stat_cols + per_100_stat_cols}
-                break
+                return nba_id, {col: None for col in per_game_stat_cols + per_100_stat_cols}
 
             # ✅ If multiple rows exist, use the highest GP row
             per_game_data = per_game_data.iloc[per_game_data["GP"].idxmax()]
@@ -135,14 +128,23 @@ for idx, row in tqdm(filtered_players.iterrows(), total=len(filtered_players), d
             stats_row = {f"{prefix}_PG_{col}": per_game_data.get(col, None) for col in per_game_stat_cols}
             stats_row.update({f"{prefix}_P100_{col}": per_100_data.get(col, None) for col in per_100_stat_cols})
 
-            # ✅ Store updated data
-            updated_stats[nba_id] = stats_row
-            break  # Success, move to next player
+            return nba_id, stats_row  # ✅ Success, return data
 
         except Exception as e:
-            print(f"⚠️ Error fetching stats for NBA ID {nba_id} (Attempt {3-retries}/2): {e}")
+            print(f"⚠️ Error fetching stats for NBA ID {nba_id} (Attempt {2-retries}/1): {e}")
             retries -= 1
             time.sleep(random.uniform(1, 3))
+    
+    return nba_id, None  # If all retries fail
+
+# ✅ Process players in parallel
+with ThreadPoolExecutor(max_workers=5) as executor:  # ✅ Adjust the number of workers (5 is safe)
+    futures = {executor.submit(fetch_player_stats, row["NBA_ID"]): row["NBA_ID"] for _, row in filtered_players.iterrows()}
+
+    for future in tqdm(as_completed(futures), total=len(futures), desc="Processing Players"):
+        nba_id, stats = future.result()
+        if stats:
+            updated_stats[nba_id] = stats
 
 # ✅ Convert to DataFrame
 stats_df = pd.DataFrame.from_dict(updated_stats, orient="index").reset_index()
@@ -150,7 +152,6 @@ stats_df.rename(columns={"index": "NBA_ID"}, inplace=True)
 
 # ✅ Merge updated stats back into each sheet
 for sheet_name, df in sheet_data.items():
-    # ✅ Merge only players that exist in this specific sheet
     df = df.merge(stats_df, on="NBA_ID", how="left")
     df = df.where(pd.notna(df), None)  # Convert NaN to None
 
