@@ -109,9 +109,11 @@ def fetch_player_stats(nba_id):
             time.sleep(random.uniform(1, 2))  # ✅ Stagger requests
 
             nba_year = get_nba_year(nba_id)
-            if not nba_year or nba_year > 5:
-                print(f"⚠️ NBA ID {nba_id} has an invalid NBA Year. Skipping...")
-                return nba_id, None
+
+            if nba_year is None:  # Only skip if the NBA Year is truly unknown
+            print(f"⚠️ NBA ID {nba_id} has an unknown NBA Year. Skipping...")
+            return nba_id, None
+
 
             per_game_dashboard = PlayerDashboardByYearOverYear(player_id=nba_id, per_mode_detailed="PerGame").get_data_frames()[1]
             per_100_dashboard = PlayerDashboardByYearOverYear(player_id=nba_id, per_mode_detailed="Per100Possessions").get_data_frames()[1]
