@@ -3,27 +3,40 @@ import time
 import random
 import gspread
 import datetime
+import os
+import json
 from nba_api.stats.endpoints import PlayerDashboardByYearOverYear, PlayerCareerStats
 from oauth2client.service_account import ServiceAccountCredentials
 from tqdm import tqdm
 
+# ✅ Load Google Sheets API credentials securely from GitHub Secrets
+google_creds = os.getenv("GOOGLE_CREDS")
+
+if google_creds is None:
+    raise ValueError("🚨 GOOGLE_CREDS environment variable not found!")
+
+# ✅ Convert JSON string back into a dictionary
+creds_dict = json.loads(google_creds)
+
+# ✅ Authenticate Google Sheets API
+scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+client = gspread.authorize(creds)
+
 # ✅ Google Sheets setup
 GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1aO1TouqQdJPmDXr_PeCRZxyRAflMfqat5CShTdv0Rlo/edit#gid=347820615"
 SHEET_NAMES = ["Rookies", "Sophomores", "3rd-Year", "4th-Year", "5th-Year"]  # ✅ The five sheets
-
-# ✅ Load Google Sheets API credentials
-CREDENTIALS_FILE = "google_creds.json"
 
 # ✅ NBA API settings
 CURRENT_SEASON = "2024-25"
 
 # ✅ Draft class update schedule (Monday to Friday)
 DRAFT_SCHEDULE = {
-    0: 2024,  # Monday -> 2024 Draft Class (Rookies)
-    1: 2023,  # Tuesday -> 2023 Draft Class (Sophomores)
-    2: 2022,  # Wednesday -> 2022 Draft Class (3rd-Year)
-    3: 2021,  # Thursday -> 2021 Draft Class (4th-Year)
-    4: 2020,  # Friday -> 2020 Draft Class (5th-Year)
+    0: 2024,  # Monday -> 2024 Draft Class
+    1: 2023,  # Tuesday -> 2023 Draft Class
+    2: 2022,  # Wednesday -> 2022 Draft Class
+    3: 2021,  # Thursday -> 2021 Draft Class
+    4: 2020,  # Friday -> 2020 Draft Class
 }
 
 # ✅ Determine today's draft class
@@ -41,11 +54,6 @@ per_game_stat_cols = ["MIN", "GP", "FGM", "FGA", "FG_PCT", "FG3M", "FG3A", "FG3_
 
 per_100_stat_cols = ["FGM", "FGA", "FG3M", "FG3A", "FTM", "FTA", "REB", "AST", "TOV", "STL", "BLK", "PTS", "PLUS_MINUS"]
 
-# ✅ Google Sheets authentication
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-creds = ServiceAccountCredentials.from_json_keyfile_name(CREDENTIALS_FILE, scope)
-client = gspread.authorize(creds)
-
 # ✅ Load all sheets into a dictionary {sheet_name: dataframe}
 sheet_data = {}
 for sheet_name in SHEET_NAMES:
@@ -60,7 +68,7 @@ for sheet_name, df in sheet_data.items():
 # ✅ Combine all sheets into one DataFrame
 full_data = pd.concat(sheet_data.values(), ignore_index=True)
 
-# ✅ Filter only players from today's draft class
+# ✅ Filter only players from today's draft class, regardless of which sheet they're in
 filtered_players = full_data[full_data["Draft Year"] == draft_year_to_update]
 
 # ✅ Dictionary to store updated stats
@@ -142,11 +150,12 @@ stats_df.rename(columns={"index": "NBA_ID"}, inplace=True)
 
 # ✅ Merge updated stats back into each sheet
 for sheet_name, df in sheet_data.items():
-    merged_df = df.merge(stats_df, on="NBA_ID", how="left")
-    merged_df = merged_df.where(pd.notna(merged_df), None)  # Convert NaN to None
+    # ✅ Merge only players that exist in this specific sheet
+    df = df.merge(stats_df, on="NBA_ID", how="left")
+    df = df.where(pd.notna(df), None)  # Convert NaN to None
 
     # ✅ Update Google Sheet
     sheet = client.open_by_url(GOOGLE_SHEET_URL).worksheet(sheet_name)
-    sheet.update([merged_df.columns.values.tolist()] + merged_df.values.tolist())
+    sheet.update([df.columns.values.tolist()] + df.values.tolist())
 
 print(f"🎉 Finished updating Draft Class {draft_year_to_update} across all sheets!")
