@@ -14,7 +14,7 @@ from tqdm import tqdm
 google_creds = os.getenv("GOOGLE_CREDS")
 
 if google_creds is None:
-    raise ValueError("🚨 GOOGLE_CREDS environment variable not found!")
+    raise ValueError("\ud83d\udea8 GOOGLE_CREDS environment variable not found!")
 
 # ✅ Convert JSON string back into a dictionary
 creds_dict = json.loads(google_creds)
@@ -43,11 +43,11 @@ DRAFT_SCHEDULE = {
 # ✅ Determine today's draft class
 today = datetime.datetime.today().weekday()
 if today not in DRAFT_SCHEDULE:
-    print("🛑 Today is not a scheduled update day. Exiting script.")
+    print("\ud83d\uded1 Today is not a scheduled update day. Exiting script.")
     exit()
 
 draft_year_to_update = DRAFT_SCHEDULE[today]
-print(f"🚀 Updating Draft Class {draft_year_to_update}...")
+print(f"\ud83d\ude80 Updating Draft Class {draft_year_to_update}...")
 
 # ✅ Stats columns
 per_game_stat_cols = ["MIN", "GP", "FGM", "FGA", "FG_PCT", "FG3M", "FG3A", "FG3_PCT",
@@ -64,7 +64,7 @@ for sheet_name in SHEET_NAMES:
 # ✅ Ensure all sheets have "Draft Year" and "NBA_ID"
 for sheet_name, df in sheet_data.items():
     if "Draft Year" not in df.columns or "NBA_ID" not in df.columns:
-        raise ValueError(f"🚨 'Draft Year' and 'NBA_ID' columns missing in {sheet_name} sheet!")
+        raise ValueError(f"\ud83d\udea8 'Draft Year' and 'NBA_ID' columns missing in {sheet_name} sheet!")
 
 # ✅ Combine all sheets into one DataFrame
 full_data = pd.concat(sheet_data.values(), ignore_index=True)
@@ -95,68 +95,45 @@ def fetch_player_stats(nba_id):
     while retries:
         try:
             time.sleep(random.uniform(1, 2))  # ✅ Stagger requests
-
-            # ✅ Determine correct NBA Year (Y1, Y2, etc.)
             nba_year = get_nba_year(nba_id)
             if not nba_year or nba_year > 5:
                 print(f"⚠️ NBA ID {nba_id} has an invalid NBA Year. Skipping...")
                 return nba_id, None
 
-            # ✅ Fetch current season per-game stats
-            per_game_dashboard = PlayerDashboardByYearOverYear(
-                player_id=nba_id, per_mode_detailed="PerGame"
-            ).get_data_frames()[1]
+            per_game_dashboard = PlayerDashboardByYearOverYear(player_id=nba_id, per_mode_detailed="PerGame").get_data_frames()[1]
+            per_100_dashboard = PlayerDashboardByYearOverYear(player_id=nba_id, per_mode_detailed="Per100Possessions").get_data_frames()[1]
 
-            # ✅ Fetch current season per-100 possessions stats
-            per_100_dashboard = PlayerDashboardByYearOverYear(
-                player_id=nba_id, per_mode_detailed="Per100Possessions"
-            ).get_data_frames()[1]
-
-            # ✅ Filter for current season
             per_game_data = per_game_dashboard[per_game_dashboard["GROUP_VALUE"] == CURRENT_SEASON]
             per_100_data = per_100_dashboard[per_100_dashboard["GROUP_VALUE"] == CURRENT_SEASON]
 
-            # ✅ If no stats exist, skip the player
             if per_game_data.empty or per_100_data.empty:
                 print(f"⚠️ No valid stats found for NBA ID {nba_id}. Skipping...")
                 return nba_id, {col: None for col in per_game_stat_cols + per_100_stat_cols}
 
-            # ✅ If multiple rows exist, use the highest GP row
             per_game_data = per_game_data.iloc[per_game_data["GP"].idxmax()]
             per_100_data = per_100_data.iloc[per_100_data["GP"].idxmax()]
 
-            # ✅ Map stats to correct columns using determined NBA Year
             prefix = f"Y{nba_year}"
             stats_row = {f"{prefix}_PG_{col}": per_game_data.get(col, None) for col in per_game_stat_cols}
             stats_row.update({f"{prefix}_P100_{col}": per_100_data.get(col, None) for col in per_100_stat_cols})
 
-            print(f"✅ Successfully pulled stats for NBA ID {nba_id}")  # ✅ Print after successful pull
+            print(f"✅ Successfully pulled stats for NBA ID {nba_id}")
             return nba_id, stats_row
 
         except Exception as e:
             print(f"⚠️ Error fetching stats for NBA ID {nba_id} (Attempt {6-retries}/5): {e}")
             retries -= 1
             time.sleep(delay)
-            delay *= 2  # Exponential backoff
-
+            delay *= 2
+    
     print(f"❌ Failed to fetch stats for NBA ID {nba_id} after multiple attempts.")
     return nba_id, None
 
-# ✅ Process players in parallel (Limit to 2 threads to avoid rate limiting)
-with ThreadPoolExecutor(max_workers=2) as executor:  
+with ThreadPoolExecutor(max_workers=2) as executor:
     futures = {executor.submit(fetch_player_stats, row["NBA_ID"]): row["NBA_ID"] for _, row in filtered_players.iterrows()}
-
     for future in tqdm(as_completed(futures), total=len(futures), desc="Processing Players"):
         nba_id, stats = future.result()
         if stats:
             updated_stats[nba_id] = stats
-
-# ✅ Merge updated stats back into each sheet
-for sheet_name, df in sheet_data.items():
-    df = df.merge(pd.DataFrame.from_dict(updated_stats, orient="index").reset_index().rename(columns={"index": "NBA_ID"}), on="NBA_ID", how="left")
-    df = df.where(pd.notna(df), None)  # Convert NaN to None
-
-    sheet = client.open_by_url(GOOGLE_SHEET_URL).worksheet(sheet_name)
-    sheet.update([df.columns.values.tolist()] + df.values.tolist())
 
 print(f"🎉 Finished updating Draft Class {draft_year_to_update} across all sheets!")
