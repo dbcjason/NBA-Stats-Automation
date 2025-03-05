@@ -88,13 +88,13 @@ def get_nba_year(nba_id):
         return None
 
 def fetch_player_stats(nba_id):
-    """Fetch NBA stats for a single player, with rate-limited retries."""
-    retries = 3
-    delay = 1  # Start with 1-second delay
+    """Fetch NBA stats for a single player, ensuring retries and proper rate limits."""
+    retries = 5  # Increased retries for robustness
+    delay = 2  # Start with 2-second delay
 
     while retries:
         try:
-            time.sleep(random.uniform(1, 2))  # ✅ Add delay to avoid rate limits
+            time.sleep(random.uniform(1, 2))  # ✅ Stagger requests
 
             # ✅ Determine correct NBA Year (Y1, Y2, etc.)
             nba_year = get_nba_year(nba_id)
@@ -130,18 +130,20 @@ def fetch_player_stats(nba_id):
             stats_row = {f"{prefix}_PG_{col}": per_game_data.get(col, None) for col in per_game_stat_cols}
             stats_row.update({f"{prefix}_P100_{col}": per_100_data.get(col, None) for col in per_100_stat_cols})
 
-            return nba_id, stats_row  # ✅ Success, return data
+            print(f"✅ Successfully pulled stats for NBA ID {nba_id}")  # ✅ Print after successful pull
+            return nba_id, stats_row
 
         except Exception as e:
-            print(f"⚠️ Error fetching stats for NBA ID {nba_id} (Attempt {4-retries}/3): {e}")
+            print(f"⚠️ Error fetching stats for NBA ID {nba_id} (Attempt {6-retries}/5): {e}")
             retries -= 1
-            time.sleep(delay)  # ✅ Exponential backoff
-            delay *= 2  # Double the delay for each retry
-    
-    return nba_id, None  # If all retries fail
+            time.sleep(delay)
+            delay *= 2  # Exponential backoff
 
-# ✅ Process players in parallel (Limit to 3 threads to avoid rate limiting)
-with ThreadPoolExecutor(max_workers=3) as executor:  # ✅ Reduced concurrency
+    print(f"❌ Failed to fetch stats for NBA ID {nba_id} after multiple attempts.")
+    return nba_id, None
+
+# ✅ Process players in parallel (Limit to 2 threads to avoid rate limiting)
+with ThreadPoolExecutor(max_workers=2) as executor:  
     futures = {executor.submit(fetch_player_stats, row["NBA_ID"]): row["NBA_ID"] for _, row in filtered_players.iterrows()}
 
     for future in tqdm(as_completed(futures), total=len(futures), desc="Processing Players"):
@@ -149,16 +151,11 @@ with ThreadPoolExecutor(max_workers=3) as executor:  # ✅ Reduced concurrency
         if stats:
             updated_stats[nba_id] = stats
 
-# ✅ Convert to DataFrame
-stats_df = pd.DataFrame.from_dict(updated_stats, orient="index").reset_index()
-stats_df.rename(columns={"index": "NBA_ID"}, inplace=True)
-
 # ✅ Merge updated stats back into each sheet
 for sheet_name, df in sheet_data.items():
-    df = df.merge(stats_df, on="NBA_ID", how="left")
+    df = df.merge(pd.DataFrame.from_dict(updated_stats, orient="index").reset_index().rename(columns={"index": "NBA_ID"}), on="NBA_ID", how="left")
     df = df.where(pd.notna(df), None)  # Convert NaN to None
 
-    # ✅ Update Google Sheet
     sheet = client.open_by_url(GOOGLE_SHEET_URL).worksheet(sheet_name)
     sheet.update([df.columns.values.tolist()] + df.values.tolist())
 
