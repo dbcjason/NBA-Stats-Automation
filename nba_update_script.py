@@ -7,9 +7,9 @@ from nba_api.stats.endpoints import PlayerDashboardByYearOverYear, PlayerCareerS
 from oauth2client.service_account import ServiceAccountCredentials
 from tqdm import tqdm
 
-# ✅ Google Sheet setup
+# ✅ Google Sheets setup
 GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1aO1TouqQdJPmDXr_PeCRZxyRAflMfqat5CShTdv0Rlo/edit#gid=347820615"
-SHEET_NAME = "Full"  # Change to your actual sheet name
+SHEET_NAMES = ["Rookies", "Sophomores", "3rd-Year", "4th-Year", "5th-Year"]  # ✅ The five sheets
 
 # ✅ Load Google Sheets API credentials
 CREDENTIALS_FILE = "google_creds.json"
@@ -17,20 +17,21 @@ CREDENTIALS_FILE = "google_creds.json"
 # ✅ NBA API settings
 CURRENT_SEASON = "2024-25"
 
-# ✅ Draft class schedule (Monday to Friday)
+# ✅ Draft class update schedule (Monday to Friday)
 DRAFT_SCHEDULE = {
-    0: 2024,  # Monday -> 2024 Draft Class
-    1: 2023,  # Tuesday -> 2023 Draft Class
-    2: 2022,  # Wednesday -> 2022 Draft Class
-    3: 2021,  # Thursday -> 2021 Draft Class
-    4: 2020,  # Friday -> 2020 Draft Class
+    0: 2024,  # Monday -> 2024 Draft Class (Rookies)
+    1: 2023,  # Tuesday -> 2023 Draft Class (Sophomores)
+    2: 2022,  # Wednesday -> 2022 Draft Class (3rd-Year)
+    3: 2021,  # Thursday -> 2021 Draft Class (4th-Year)
+    4: 2020,  # Friday -> 2020 Draft Class (5th-Year)
 }
 
-# ✅ Get today's draft class based on weekday
+# ✅ Determine today's draft class
 today = datetime.datetime.today().weekday()
 if today not in DRAFT_SCHEDULE:
     print("🛑 Today is not a scheduled update day. Exiting script.")
     exit()
+
 draft_year_to_update = DRAFT_SCHEDULE[today]
 print(f"🚀 Updating Draft Class {draft_year_to_update}...")
 
@@ -44,17 +45,23 @@ per_100_stat_cols = ["FGM", "FGA", "FG3M", "FG3A", "FTM", "FTA", "REB", "AST", "
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 creds = ServiceAccountCredentials.from_json_keyfile_name(CREDENTIALS_FILE, scope)
 client = gspread.authorize(creds)
-sheet = client.open_by_url(GOOGLE_SHEET_URL).worksheet(SHEET_NAME)
 
-# ✅ Load Google Sheet data
-data = pd.DataFrame(sheet.get_all_records())
+# ✅ Load all sheets into a dictionary {sheet_name: dataframe}
+sheet_data = {}
+for sheet_name in SHEET_NAMES:
+    sheet = client.open_by_url(GOOGLE_SHEET_URL).worksheet(sheet_name)
+    sheet_data[sheet_name] = pd.DataFrame(sheet.get_all_records())
 
-# ✅ Ensure necessary columns exist
-if "Draft Year" not in data.columns or "NBA_ID" not in data.columns:
-    raise ValueError("🚨 'Draft Year' and 'NBA_ID' columns must be present in the Google Sheet!")
+# ✅ Ensure all sheets have "Draft Year" and "NBA_ID"
+for sheet_name, df in sheet_data.items():
+    if "Draft Year" not in df.columns or "NBA_ID" not in df.columns:
+        raise ValueError(f"🚨 'Draft Year' and 'NBA_ID' columns missing in {sheet_name} sheet!")
 
-# ✅ Filter only today's draft class
-filtered_players = data[data["Draft Year"] == draft_year_to_update]
+# ✅ Combine all sheets into one DataFrame
+full_data = pd.concat(sheet_data.values(), ignore_index=True)
+
+# ✅ Filter only players from today's draft class
+filtered_players = full_data[full_data["Draft Year"] == draft_year_to_update]
 
 # ✅ Dictionary to store updated stats
 updated_stats = {}
@@ -112,15 +119,8 @@ for idx, row in tqdm(filtered_players.iterrows(), total=len(filtered_players), d
                 break
 
             # ✅ If multiple rows exist, use the highest GP row
-            if len(per_game_data) > 1:
-                per_game_data = per_game_data.loc[per_game_data["GP"].idxmax()]
-            else:
-                per_game_data = per_game_data.iloc[0]
-
-            if len(per_100_data) > 1:
-                per_100_data = per_100_data.loc[per_100_data["GP"].idxmax()]
-            else:
-                per_100_data = per_100_data.iloc[0]
+            per_game_data = per_game_data.iloc[per_game_data["GP"].idxmax()]
+            per_100_data = per_100_data.iloc[per_100_data["GP"].idxmax()]
 
             # ✅ Map stats to correct columns using determined NBA Year
             prefix = f"Y{nba_year}"
@@ -140,13 +140,13 @@ for idx, row in tqdm(filtered_players.iterrows(), total=len(filtered_players), d
 stats_df = pd.DataFrame.from_dict(updated_stats, orient="index").reset_index()
 stats_df.rename(columns={"index": "NBA_ID"}, inplace=True)
 
-# ✅ Merge updated stats into the original dataset
-merged_df = data.merge(stats_df, on="NBA_ID", how="left")
+# ✅ Merge updated stats back into each sheet
+for sheet_name, df in sheet_data.items():
+    merged_df = df.merge(stats_df, on="NBA_ID", how="left")
+    merged_df = merged_df.where(pd.notna(merged_df), None)  # Convert NaN to None
 
-# ✅ Convert NaN to None (Google Sheets API does not accept NaN)
-merged_df = merged_df.where(pd.notna(merged_df), None)
+    # ✅ Update Google Sheet
+    sheet = client.open_by_url(GOOGLE_SHEET_URL).worksheet(sheet_name)
+    sheet.update([merged_df.columns.values.tolist()] + merged_df.values.tolist())
 
-# ✅ Update Google Sheet
-sheet.update([merged_df.columns.values.tolist()] + merged_df.values.tolist())
-
-print(f"🎉 Finished updating Draft Class {draft_year_to_update}!")
+print(f"🎉 Finished updating Draft Class {draft_year_to_update} across all sheets!")
