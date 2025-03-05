@@ -91,10 +91,10 @@ def get_nba_year(nba_id):
 for idx, row in tqdm(filtered_players.iterrows(), total=len(filtered_players), desc=f"Fetching NBA Stats for {draft_year_to_update}"):
     nba_id = row["NBA_ID"]
 
-    retries = 2
+    retries = 1
     while retries:
         try:
-            time.sleep(random.uniform(1, 3))  # ✅ Avoid rate limits
+            time.sleep(random.uniform(0, 1.5))  # ✅ Avoid rate limits
 
             # ✅ Determine correct NBA Year (Y1, Y2, etc.)
             nba_year = get_nba_year(nba_id)
@@ -142,7 +142,7 @@ for idx, row in tqdm(filtered_players.iterrows(), total=len(filtered_players), d
         except Exception as e:
             print(f"⚠️ Error fetching stats for NBA ID {nba_id} (Attempt {3-retries}/2): {e}")
             retries -= 1
-            time.sleep(random.uniform(2, 5))
+            time.sleep(random.uniform(1, 3))
 
 # ✅ Convert to DataFrame
 stats_df = pd.DataFrame.from_dict(updated_stats, orient="index").reset_index()
