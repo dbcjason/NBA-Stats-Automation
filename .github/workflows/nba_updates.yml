@@ -2,9 +2,7 @@ name: NBA Stats Scraper
 
 on:
   schedule:
-    - cron: '*/5 * * * *'  # ✅ Runs every 5 minutes (for testing)
-    - cron: '15 1 * * 1-5'  # ✅ Runs at 5:20 PM CT (3:20 AM UTC) (First Half)
-    - cron: '40 1 * * 1-5'  # ✅ Runs at 5:50 PM CT (3:50 AM UTC) (Second Half)
+    - cron: '0 2 * * 1-5'  # ✅ Runs at 5:20 PM CT (3:20 AM UTC) (First Half)
   workflow_dispatch:  # ✅ Allows manual trigger
 
 jobs:
@@ -25,9 +23,10 @@ jobs:
       - name: Run Scraper (First Half)
         env:
           GOOGLE_CREDS: ${{ secrets.GOOGLE_CREDS }}
-        run: python scraper.py first  # ✅ Corrected argument passing
+        run: python scraper.py first
 
   scrape_data_second_half:
+    needs: scrape_data_first_half  # ✅ Ensures it runs after the first job
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -41,7 +40,10 @@ jobs:
       - name: Install Dependencies
         run: pip install -r requirements.txt
 
+      - name: Wait for 20 minutes  # ✅ Ensures there's a delay between the two jobs
+        run: sleep 12000
+
       - name: Run Scraper (Second Half)
         env:
           GOOGLE_CREDS: ${{ secrets.GOOGLE_CREDS }}
-        run: python scraper.py second  # ✅ Corrected argument passing
+        run: python scraper.py second
