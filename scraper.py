@@ -93,7 +93,7 @@ def get_nba_year(nba_id):
     if nba_id in nba_year_cache:
         return nba_year_cache[nba_id]  # ✅ Use cached value if available
 
-    retries = 5  # ✅ Max retries for API calls
+    retries = 3  # ✅ Max retries for API calls
     delay = 5    # ✅ Start delay at 5 seconds
 
     for attempt in range(retries):
@@ -168,7 +168,7 @@ def fetch_player_stats(nba_id):
         except Exception as e:
             print(f"⚠️ Error fetching stats for NBA ID {nba_id} (Attempt {6-retries}/5): {e}")
             retries -= 1
-            time.sleep(delay)  # ✅ Wait longer each retry
+            time.sleep(min(delay, 20))
             delay *= 2  
     
     print(f"❌ Failed to fetch stats for NBA ID {nba_id} after multiple attempts.")
