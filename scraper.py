@@ -86,27 +86,34 @@ print(f"Processing {len(filtered_players)} players for batch: {batch_type}")
 
 # ✅ Dictionary to store updated stats
 updated_stats = {}
+nba_year_cache = {}  # ✅ Cache NBA Year results to reduce API calls
 
 def get_nba_year(nba_id):
     """Determine a player's current NBA Year based on seasons played."""
+    if nba_id in nba_year_cache:
+        return nba_year_cache[nba_id]  # ✅ Return cached value
+
     try:
-        career = PlayerCareerStats(player_id=nba_id).get_data_frames()[0]
+        career = PlayerCareerStats(player_id=nba_id, timeout=60).get_data_frames()[0]  # ✅ Increased timeout
         if career.empty:
-            return None  # No NBA seasons played
+            nba_year_cache[nba_id] = None
+            return None  
         unique_seasons = career[career["GP"] > 0]["SEASON_ID"].unique()
-        return len(unique_seasons)  # Returns Y1, Y2, etc.
+        nba_year_cache[nba_id] = len(unique_seasons)  # ✅ Store in cache
+        return nba_year_cache[nba_id]
     except Exception as e:
         print(f"⚠️ Error determining NBA Year for NBA ID {nba_id}: {e}")
+        nba_year_cache[nba_id] = None
         return None
 
 def fetch_player_stats(nba_id):
     """Fetch NBA stats for a single player with exponential backoff and retries."""
     retries = 5  
-    delay = 2  
+    delay = 5  # ✅ Increased from 2s → 5s
 
     while retries:
         try:
-            time.sleep(random.uniform(1, 2))  # ✅ Stagger requests
+            time.sleep(random.uniform(3, 5))  # ✅ Slower requests to avoid rate limiting
 
             nba_year = get_nba_year(nba_id)
 
@@ -114,9 +121,8 @@ def fetch_player_stats(nba_id):
                 print(f"⚠️ NBA ID {nba_id} has an unknown NBA Year. Skipping...")
                 return nba_id, None
 
-
-            per_game_dashboard = PlayerDashboardByYearOverYear(player_id=nba_id, per_mode_detailed="PerGame").get_data_frames()[1]
-            per_100_dashboard = PlayerDashboardByYearOverYear(player_id=nba_id, per_mode_detailed="Per100Possessions").get_data_frames()[1]
+            per_game_dashboard = PlayerDashboardByYearOverYear(player_id=nba_id, per_mode_detailed="PerGame", timeout=60).get_data_frames()[1]
+            per_100_dashboard = PlayerDashboardByYearOverYear(player_id=nba_id, per_mode_detailed="Per100Possessions", timeout=60).get_data_frames()[1]
 
             per_game_data = per_game_dashboard[per_game_dashboard["GROUP_VALUE"] == CURRENT_SEASON]
             per_100_data = per_100_dashboard[per_100_dashboard["GROUP_VALUE"] == CURRENT_SEASON]
@@ -138,7 +144,7 @@ def fetch_player_stats(nba_id):
         except Exception as e:
             print(f"⚠️ Error fetching stats for NBA ID {nba_id} (Attempt {6-retries}/5): {e}")
             retries -= 1
-            time.sleep(delay)
+            time.sleep(delay)  # ✅ Wait longer each retry
             delay *= 2  
     
     print(f"❌ Failed to fetch stats for NBA ID {nba_id} after multiple attempts.")
