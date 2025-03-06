@@ -2,7 +2,7 @@ name: NBA Stats Scraper
 
 on:
   schedule:
-    - cron: '0 2 * * 1-5'  # ✅ Runs at 5:20 PM CT (3:20 AM UTC) (First Half)
+    - cron: '30 2 * * 1-5'  # ✅ Runs at 5:20 PM CT (3:20 AM UTC) (First Half)
   workflow_dispatch:  # ✅ Allows manual trigger
 
 jobs:
@@ -41,7 +41,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Wait for 20 minutes  # ✅ Ensures there's a delay between the two jobs
-        run: sleep 12000
+        run: sleep 1200
 
       - name: Run Scraper (Second Half)
         env:
