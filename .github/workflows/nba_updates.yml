@@ -2,8 +2,8 @@ name: NBA Stats Scraper
 
 on:
   schedule:
-    - cron: '0 0 * * 1-5'  # ✅ Runs at 5:20 PM CT (3:20 AM UTC) (First Half)
-    - cron: '30 0 * * 1-5'  # ✅ Runs at 5:50 PM CT (3:50 AM UTC) (Second Half)
+    - cron: '15 0 * * 1-5'  # ✅ Runs at 5:20 PM CT (3:20 AM UTC) (First Half)
+    - cron: '45 0 * * 1-5'  # ✅ Runs at 5:50 PM CT (3:50 AM UTC) (Second Half)
   workflow_dispatch:  # ✅ Allows manual trigger
 
 jobs:
