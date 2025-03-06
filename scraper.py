@@ -86,25 +86,49 @@ print(f"Processing {len(filtered_players)} players for batch: {batch_type}")
 
 # ✅ Dictionary to store updated stats
 updated_stats = {}
-nba_year_cache = {}  # ✅ Cache NBA Year results to reduce API calls
+nba_year_cache = {}  # ✅ Cache NBA Year results to avoid redundant failures
 
 def get_nba_year(nba_id):
-    """Determine a player's current NBA Year based on seasons played."""
+    """Determine a player's current NBA Year based on seasons played, handling timeouts and missing data."""
     if nba_id in nba_year_cache:
-        return nba_year_cache[nba_id]  # ✅ Return cached value
+        return nba_year_cache[nba_id]  # ✅ Use cached value if available
 
-    try:
-        career = PlayerCareerStats(player_id=nba_id, timeout=60).get_data_frames()[0]  # ✅ Increased timeout
-        if career.empty:
-            nba_year_cache[nba_id] = None
-            return None  
-        unique_seasons = career[career["GP"] > 0]["SEASON_ID"].unique()
-        nba_year_cache[nba_id] = len(unique_seasons)  # ✅ Store in cache
-        return nba_year_cache[nba_id]
-    except Exception as e:
-        print(f"⚠️ Error determining NBA Year for NBA ID {nba_id}: {e}")
-        nba_year_cache[nba_id] = None
-        return None
+    retries = 5  # ✅ Max retries for API calls
+    delay = 5    # ✅ Start delay at 5 seconds
+
+    for attempt in range(retries):
+        try:
+            time.sleep(random.uniform(3, 5))  # ✅ Stagger requests to avoid rate limits
+            career = PlayerCareerStats(player_id=nba_id, timeout=60).get_data_frames()[0]
+
+            # ✅ If there's no game data for this player, log and skip
+            if career.empty or "GP" not in career.columns:
+                print(f"⚠️ NBA ID {nba_id} has no recorded seasons. Skipping...")
+                nba_year_cache[nba_id] = None
+                return None  
+
+            unique_seasons = career[career["GP"] > 0]["SEASON_ID"].unique()
+
+            # ✅ If no seasons are found, skip the player
+            if len(unique_seasons) == 0:
+                print(f"⚠️ NBA ID {nba_id} has no valid NBA seasons. Skipping...")
+                nba_year_cache[nba_id] = None
+                return None
+
+            nba_year_cache[nba_id] = len(unique_seasons)  # ✅ Store in cache
+            return nba_year_cache[nba_id]
+
+        except Exception as e:
+            print(f"⚠️ Attempt {attempt+1}/{retries}: Error fetching NBA Year for {nba_id}: {e}")
+
+            if attempt == retries - 1:  # ✅ Last retry failed
+                print(f"❌ NBA ID {nba_id} permanently failed. Skipping future queries.")
+                nba_year_cache[nba_id] = None  # ✅ Mark permanently failed
+                return None
+
+            time.sleep(delay)  # ✅ Increase wait time before retrying
+            delay *= 2  # ✅ Exponential backoff (5s, 10s, 20s, etc.)
+
 
 def fetch_player_stats(nba_id):
     """Fetch NBA stats for a single player with exponential backoff and retries."""
