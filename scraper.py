@@ -111,8 +111,8 @@ def fetch_player_stats(nba_id):
             nba_year = get_nba_year(nba_id)
 
             if nba_year is None:  # Only skip if the NBA Year is truly unknown
-            print(f"⚠️ NBA ID {nba_id} has an unknown NBA Year. Skipping...")
-            return nba_id, None
+                print(f"⚠️ NBA ID {nba_id} has an unknown NBA Year. Skipping...")
+                return nba_id, None
 
 
             per_game_dashboard = PlayerDashboardByYearOverYear(player_id=nba_id, per_mode_detailed="PerGame").get_data_frames()[1]
