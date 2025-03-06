@@ -175,7 +175,7 @@ def fetch_player_stats(nba_id):
     return nba_id, None
 
 # ✅ Process players in parallel (Limit to 2 threads to avoid rate limiting)
-with ThreadPoolExecutor(max_workers=2) as executor:
+with ThreadPoolExecutor(max_workers=5) as executor:
     futures = {executor.submit(fetch_player_stats, row["NBA_ID"]): row["NBA_ID"] for _, row in filtered_players.iterrows()}
     for future in tqdm(as_completed(futures), total=len(futures), desc="Processing Players"):
         nba_id, stats = future.result()
