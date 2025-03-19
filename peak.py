@@ -556,9 +556,10 @@ def update_google_sheet(df_predictions):
     # ✅ Loop through each sheet and filter players accordingly
     for sheet_name in sheet_names:
         if sheet_name == "Cumulative":
-            filtered_df = df_predictions  # ✅ Save ALL players in Cumulative
+            filtered_df = df_predictions[df_predictions["Player"].notna() & (df_predictions["Player"].str.strip() != "")]
         else:
             filtered_df = df_predictions[df_predictions["Draft Year"] == int(sheet_name)]
+
 
         if filtered_df.empty:
             print(f"⚠️ No data for sheet '{sheet_name}', skipping.")
