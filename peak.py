@@ -8,14 +8,12 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import random
 from scipy.spatial.distance import cdist
-from google.colab import drive
 import os
 import time
 
 SHEET_ID = "1zbLS_oFATsZN4zPHO5x5UZnfMHCgw5eA9iWmy9G9UaU"
 
-# ✅ Set base directory (Change this to your actual folder)
-BASE_DIR = "/content/drive/My Drive/"
+BASE_DIR = os.getcwd()  # ✅ Use current working directory in GitHub Actions
 
 # ✅ Update paths to use Google Drive
 CREDENTIALS_FILE = os.path.join(BASE_DIR, "google_creds.json")
@@ -25,13 +23,17 @@ CREDENTIALS_FILE = os.path.join(BASE_DIR, "google_creds.json")
 TRAINING_SHEET_URL = "https://docs.google.com/spreadsheets/d/1aO1TouqQdJPmDXr_PeCRZxyRAflMfqat5CShTdv0Rlo/edit?gid=347820615#gid=347820615"
 TRAINING_SHEET_NAME = "Player Peak Projections"  # ✅ Change this to your actual sheet name
 PREDICTIONS_SHEET_NAME = "Waffles"
-CREDENTIALS_FILE = os.path.join(BASE_DIR, "google_creds.json")
+GOOGLE_CREDS = os.getenv("GOOGLE_CREDS")  # ✅ Load from GitHub Actions secrets
+if GOOGLE_CREDS is None:
+    raise ValueError("❌ GOOGLE_CREDS not found. Make sure it's set in GitHub Secrets.")
+creds_dict = json.loads(GOOGLE_CREDS)
+
 
 
 def load_data(sheet_name):
     try:
         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        creds = ServiceAccountCredentials.from_json_keyfile_name(CREDENTIALS_FILE, scope)
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
         client = gspread.authorize(creds)
 
         # ✅ Open the main spreadsheet (NOT separate sheets)
@@ -359,7 +361,7 @@ def make_predictions(player_group):
 
     sheet_name, model_filename = sheet_map[player_group]
 
-    model_filename = os.path.join(BASE_DIR, model_filename)
+    model_filename = f"{group.lower()}_model.pkl"  # ✅ Save in the current directory
     model = joblib.load(model_filename)
 
     
