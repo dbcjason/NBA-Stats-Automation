@@ -362,7 +362,7 @@ def make_predictions(player_group):
 
     sheet_name, model_filename = sheet_map[player_group]
 
-    model_filename = f"{group.lower()}_model.pkl"  # ✅ Save in the current directory
+    model_filename = f"{player_group.lower()}_model.pkl"  # ✅ Save in the current directory
     model = joblib.load(model_filename)
 
     
