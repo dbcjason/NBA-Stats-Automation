@@ -27,7 +27,14 @@ PREDICTIONS_SHEET_NAME = "Waffles"
 GOOGLE_CREDS = os.getenv("GOOGLE_CREDS")  # ✅ Load from GitHub Actions secrets
 if GOOGLE_CREDS is None:
     raise ValueError("❌ GOOGLE_CREDS not found. Make sure it's set in GitHub Secrets.")
+
+# ✅ Convert JSON string to dictionary
 creds_dict = json.loads(GOOGLE_CREDS)
+
+# ✅ Save credentials to a file
+with open(CREDENTIALS_FILE, "w") as json_file:
+    json.dump(creds_dict, json_file)
+
 
 
 
