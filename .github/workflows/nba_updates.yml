@@ -1,12 +1,12 @@
-name: NBA Stats Scraper
+name: Run Peak Projection
 
 on:
   schedule:
-    - cron: '30 2 * * 1-5'  # ✅ Runs at 5:20 PM CT (3:20 AM UTC) (First Half)
+    - cron: '0 10 * * 1-5'  # ✅ Runs at 10:00 AM UTC (5:00 AM CT)
   workflow_dispatch:  # ✅ Allows manual trigger
 
 jobs:
-  scrape_data_first_half:
+  run_peak_projections:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
@@ -20,30 +20,7 @@ jobs:
       - name: Install Dependencies
         run: pip install -r requirements.txt
 
-      - name: Run Scraper (First Half)
+      - name: Run Peak Projection Script
         env:
           GOOGLE_CREDS: ${{ secrets.GOOGLE_CREDS }}
-        run: python scraper.py first
-
-  scrape_data_second_half:
-    needs: scrape_data_first_half  # ✅ Ensures it runs after the first job
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.9'
-
-      - name: Install Dependencies
-        run: pip install -r requirements.txt
-
-      - name: Wait for 20 minutes  # ✅ Ensures there's a delay between the two jobs
-        run: sleep 1200
-
-      - name: Run Scraper (Second Half)
-        env:
-          GOOGLE_CREDS: ${{ secrets.GOOGLE_CREDS }}
-        run: python scraper.py second
+        run: python peak.py
