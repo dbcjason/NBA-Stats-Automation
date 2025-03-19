@@ -5,3 +5,8 @@ oauth2client
 tqdm
 nba_api
 requests
+xgboost
+scikit-learn
+joblib
+scipy
+matplotlib
