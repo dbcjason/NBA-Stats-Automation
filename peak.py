@@ -617,7 +617,7 @@ def run_pipeline():
     # ✅ Combine all predictions into one DataFrame
     if all_predictions:
         final_df = pd.concat(all_predictions)
-        final_df = final_df.sort_values(by="Player", ascending=True)  # Sort by peak value
+        final_df = final_df.sort_values(by="peak_p/g", ascending=False)  # Sort by peak value
         update_google_sheet(final_df)  # ✅ FIXED: Now correctly calls the function
     else:
         print("❌ No predictions generated.")
