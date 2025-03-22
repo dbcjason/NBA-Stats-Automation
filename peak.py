@@ -212,7 +212,7 @@ def preprocess_data(df, model_type):
         "Y5_PG_FGM", "Y1_P100_FGM", "Y2_P100_FGM_x", "Y3_P100_FGM", "Y4_P100_FGM", "Y5_P100_FGM", "Y1_PG_FGA",
         "Y2_PG_FGA_x", "Y3_PG_FGA", "Y4_PG_FGA", "Y5_PG_FGA", "Y1_P100_FGA", "Y2_P100_FGA_x", "Y3_P100_FGA",
         "Y4_P100_FGA", "Y5_P100_FGA", "Dunks", "G", "ORtg", "D-Rtg", "Rim Att", "Ast'd Rim", "Ast'd 3",
-        "Ast'd Total", "MP"
+        "Ast'd Total", "MP", "MPG", "3PM"
     ]
 
     # ✅ Conditionally drop "Pick" for 3rd-Year, 4th-Year, and 5th-Year models
