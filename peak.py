@@ -423,7 +423,7 @@ def make_predictions(player_group):
 
     # ✅ Apply boost based on the top 5% threshold for each stat
     for stat, boost_factor in boost_stats.items():
-        stat_threshold = df_predictions[stat].quantile(0.95)  # 🔥 Get top 5% threshold
+        stat_threshold = df_predictions[stat].quantile(0.98)  # 🔥 Get top 5% threshold
         df_predictions.loc[df_predictions[stat] >= stat_threshold, stat] *= boost_factor  # ✅ Apply boost
 
     # ✅ Print AFTER adjustment (first 10 rows)
